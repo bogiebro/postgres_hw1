@@ -409,50 +409,7 @@ StrategyInitialize(bool init)
 BufferAccessStrategy
 GetAccessStrategy(BufferAccessStrategyType btype)
 {
-	BufferAccessStrategy strategy;
-	int			ring_size;
-
-	/*
-	 * Select ring size to use.  See buffer/README for rationales.
-	 *
-	 * Note: if you change the ring size for BAS_BULKREAD, see also
-	 * SYNC_SCAN_REPORT_INTERVAL in access/heap/syncscan.c.
-	 */
-	switch (btype)
-	{
-		case BAS_NORMAL:
-			/* if someone asks for NORMAL, just give 'em a "default" object */
-			return NULL;
-
-		case BAS_BULKREAD:
-			ring_size = 256 * 1024 / BLCKSZ;
-			break;
-		case BAS_BULKWRITE:
-			ring_size = 16 * 1024 * 1024 / BLCKSZ;
-			break;
-		case BAS_VACUUM:
-			ring_size = 256 * 1024 / BLCKSZ;
-			break;
-
-		default:
-			elog(ERROR, "unrecognized buffer access strategy: %d",
-				 (int) btype);
-			return NULL;		/* keep compiler quiet */
-	}
-
-	/* Make sure ring isn't an undue fraction of shared buffers */
-	ring_size = Min(NBuffers / 8, ring_size);
-
-	/* Allocate the object and initialize all elements to zeroes */
-	strategy = (BufferAccessStrategy)
-		palloc0(offsetof(BufferAccessStrategyData, buffers) +
-				ring_size * sizeof(Buffer));
-
-	/* Set fields that don't start out zero */
-	strategy->btype = btype;
-	strategy->ring_size = ring_size;
-
-	return strategy;
+	return NULL;
 }
 
 /*
