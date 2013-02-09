@@ -1,0 +1,12 @@
+LOG:  database system was shut down at 2013-02-07 23:25:32 EST
+LOG:  database system is ready to accept connections
+LOG:  autovacuum launcher started
+FATAL:  database "test" does not exist
+ERROR:  could not open file "/home/accts/<netid>/R" for reading: No such file or directory
+STATEMENT:  COPY raw_r_tuples FROM '/home/accts/<netid>/R' DELIMITERS ',';
+ERROR:  could not open file "/home/accts/<netid>/S" for reading: No such file or directory
+STATEMENT:  COPY raw_s_tuples FROM '/home/accts/<netid>/S' DELIMITERS ',';
+LOG:  received smart shutdown request
+LOG:  autovacuum launcher shutting down
+LOG:  shutting down
+LOG:  database system is shut down
