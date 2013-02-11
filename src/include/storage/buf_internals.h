@@ -135,7 +135,8 @@ typedef struct sbufdesc
 {
 	BufferTag	tag;			/* ID of page contained in buffer */
 	BufFlags	flags;			/* see bit definitions above */
-	uint16		usage_count;	/* usage counter for clock sweep code */
+	int 		prevbuf;   		/* previously read buffers*/
+	int 		nextbuf;        /* subsequently read buffers*/
 	unsigned	refcount;		/* # of backends holding pins on buffer */
 	int			wait_backend_pid;		/* backend PID of pin-count waiter */
 

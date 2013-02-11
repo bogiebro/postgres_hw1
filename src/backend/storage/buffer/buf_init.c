@@ -74,7 +74,7 @@ InitBufferPool(void)
 {
 	bool		foundBufs,
 				foundDescs;
-
+	MRUBuffer = 0;
 	BufferDescriptors = (BufferDesc *)
 		ShmemInitStruct("Buffer Descriptors",
 						NBuffers * sizeof(BufferDesc), &foundDescs);
@@ -102,8 +102,8 @@ InitBufferPool(void)
 		for (i = 0; i < NBuffers; buf++, i++)
 		{
 			CLEAR_BUFFERTAG(buf->tag);
+			buf->prevbuf = i + 1;
 			buf->flags = 0;
-			buf->usage_count = 0;
 			buf->refcount = 0;
 			buf->wait_backend_pid = 0;
 

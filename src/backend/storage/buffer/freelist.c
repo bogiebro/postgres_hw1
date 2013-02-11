@@ -24,9 +24,6 @@
  */
 typedef struct
 {
-	/* Clock sweep hand: index of next buffer to consider grabbing */
-	int			nextVictimBuffer;
-
 	int			firstFreeBuffer;	/* Head of list of unused buffers */
 	int			lastFreeBuffer; /* Tail of list of unused buffers */
 
@@ -84,12 +81,10 @@ typedef struct BufferAccessStrategyData
 	Buffer		buffers[1];		/* VARIABLE SIZE ARRAY */
 }	BufferAccessStrategyData;
 
-
 /* Prototypes for internal functions */
 static volatile BufferDesc *GetBufferFromRing(BufferAccessStrategy strategy);
 static void AddBufferToRing(BufferAccessStrategy strategy,
 				volatile BufferDesc *buf);
-
 
 /*
  * StrategyGetBuffer
@@ -115,21 +110,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 	Latch	   *bgwriterLatch;
 	int			trycounter;
 
-	/*
-	 * If given a strategy object, see whether it can select a buffer. We
-	 * assume strategy objects don't need the BufFreelistLock.
-	 */
-	if (strategy != NULL)
-	{
-		buf = GetBufferFromRing(strategy);
-		if (buf != NULL)
-		{
-			*lock_held = false;
-			return buf;
-		}
-	}
-
-	/* Nope, so lock the freelist */
+	/* lock the freelist */
 	*lock_held = true;
 	LWLockAcquire(BufFreelistLock, LW_EXCLUSIVE);
 
@@ -178,27 +159,17 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 		 * we'd better check anyway.)
 		 */
 		LockBufHdr(buf);
-		if (buf->refcount == 0 && buf->usage_count == 0)
-		{
-			if (strategy != NULL)
-				AddBufferToRing(strategy, buf);
+		if (buf->refcount == 0)
 			return buf;
-		}
 		UnlockBufHdr(buf);
 	}
 
-	/* Nothing on the freelist, so run the "clock sweep" algorithm */
+	/* Nothing on the freelist, so run the "mru" algorithm */
 	trycounter = NBuffers;
+	int currentbuf = MRUBuffer;
 	for (;;)
 	{
-		buf = &BufferDescriptors[StrategyControl->nextVictimBuffer];
-
-		if (++StrategyControl->nextVictimBuffer >= NBuffers)
-		{
-			StrategyControl->nextVictimBuffer = 0;
-			StrategyControl->completePasses++;
-		}
-
+		buf = &BufferDescriptors[currentbuf];
 		/*
 		 * If the buffer is pinned or has a nonzero usage_count, we cannot use
 		 * it; decrement the usage_count (unless pinned) and keep scanning.
@@ -206,34 +177,40 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 		LockBufHdr(buf);
 		if (buf->refcount == 0)
 		{
-			if (buf->usage_count > 0)
-			{
-				buf->usage_count--;
-				trycounter = NBuffers;
-			}
-			else
-			{
-				/* Found a usable buffer */
-				if (strategy != NULL)
-					AddBufferToRing(strategy, buf);
-				return buf;
-			}
-		}
-		else if (--trycounter == 0)
-		{
-			/*
-			 * We've scanned all the buffers without making any state changes,
-			 * so all the buffers are pinned (or were when we looked at them).
-			 * We could hope that someone will free one eventually, but it's
-			 * probably better to fail than to risk getting stuck in an
-			 * infinite loop.
-			 */
-			UnlockBufHdr(buf);
-			elog(ERROR, "no unpinned buffers available");
-		}
-		UnlockBufHdr(buf);
-	}
+			/* Found a usable buffer */
+			if (MRUBuffer != currentbuf) {
+				int aidx, bidx, cidx, didx;
+				aidx = buf->prevbuf;
+				bidx = currentbuf;
+				cidx = buf->nextbuf;
+				didx = MRUBuffer;
 
+				buf->prevbuf = didx;
+				buf->nextbuf = -1;
+				BufferDescriptors[didx].nextbuf = bidx;
+				BufferDescriptors[aidx].nextbuf = cidx;
+				BufferDescriptors[cidx].prevbuf = aidx;
+				MRUBuffer = bidx;
+			} 
+			return buf;
+		}
+		else {
+			currentbuf = BufferDescriptors[currentbuf].prevbuf;
+			if (--trycounter == 0)
+			{
+				/*
+				 * We've scanned all the buffers without making any state changes,
+				 * so all the buffers are pinned (or were when we looked at them).
+				 * We could hope that someone will free one eventually, but it's
+				 * probably better to fail than to risk getting stuck in an
+				 * infinite loop.
+				 */
+				UnlockBufHdr(buf);
+				elog(ERROR, "no unpinned buffers available");
+			}
+			UnlockBufHdr(buf);
+		}
+	}
 	/* not reached */
 	return NULL;
 }
@@ -278,7 +255,8 @@ StrategySyncStart(uint32 *complete_passes, uint32 *num_buf_alloc)
 	int			result;
 
 	LWLockAcquire(BufFreelistLock, LW_EXCLUSIVE);
-	result = StrategyControl->nextVictimBuffer;
+	
+	result = MRUBuffer;
 	if (complete_passes)
 		*complete_passes = StrategyControl->completePasses;
 	if (num_buf_alloc)
@@ -380,9 +358,6 @@ StrategyInitialize(bool init)
 		StrategyControl->firstFreeBuffer = 0;
 		StrategyControl->lastFreeBuffer = NBuffers - 1;
 
-		/* Initialize the clock sweep pointer */
-		StrategyControl->nextVictimBuffer = 0;
-
 		/* Clear statistics */
 		StrategyControl->completePasses = 0;
 		StrategyControl->numBufferAllocs = 0;
@@ -465,7 +440,7 @@ GetBufferFromRing(BufferAccessStrategy strategy)
 	 */
 	buf = &BufferDescriptors[bufnum - 1];
 	LockBufHdr(buf);
-	if (buf->refcount == 0 && buf->usage_count <= 1)
+	if (buf->refcount == 0)
 	{
 		strategy->current_was_in_ring = true;
 		return buf;
@@ -523,3 +498,4 @@ StrategyRejectBuffer(BufferAccessStrategy strategy, volatile BufferDesc *buf)
 
 	return true;
 }
+

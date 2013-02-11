@@ -826,7 +826,6 @@ BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 		buf->flags |= BM_TAG_VALID | BM_PERMANENT;
 	else
 		buf->flags |= BM_TAG_VALID;
-	buf->usage_count = 1;
 
 	UnlockBufHdr(buf);
 
@@ -936,7 +935,6 @@ retry:
 	oldFlags = buf->flags;
 	CLEAR_BUFFERTAG(buf->tag);
 	buf->flags = 0;
-	buf->usage_count = 0;
 
 	UnlockBufHdr(buf);
 
@@ -1084,16 +1082,20 @@ PinBuffer(volatile BufferDesc *buf, BufferAccessStrategy strategy)
 	{
 		LockBufHdr(buf);
 		buf->refcount++;
-		if (strategy == NULL)
-		{
-			if (buf->usage_count < BM_MAX_USAGE_COUNT)
-				buf->usage_count++;
-		}
-		else
-		{
-			if (buf->usage_count == 0)
-				buf->usage_count = 1;
-		}
+
+		int aidx, bidx, cidx, didx;
+		aidx = buf->prevbuf;
+		bidx = (int)((buf - BufferDescriptors) / sizeof(BufferDesc));
+		cidx = buf->nextbuf;
+		didx = MRUBuffer;
+
+		buf->prevbuf = didx;
+		buf->nextbuf = -1;
+		BufferDescriptors[didx].nextbuf = bidx;
+		BufferDescriptors[aidx].nextbuf = cidx;
+		BufferDescriptors[cidx].prevbuf = aidx;
+		MRUBuffer = bidx;
+
 		result = (buf->flags & BM_VALID) != 0;
 		UnlockBufHdr(buf);
 	}
@@ -1651,7 +1653,7 @@ SyncOneBuffer(int buf_id, bool skip_recently_used)
 	 */
 	LockBufHdr(bufHdr);
 
-	if (bufHdr->refcount == 0 && bufHdr->usage_count == 0)
+	if (bufHdr->refcount == 0)
 		result |= BUF_REUSABLE;
 	else if (skip_recently_used)
 	{
