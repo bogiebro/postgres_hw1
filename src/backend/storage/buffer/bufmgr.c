@@ -1083,20 +1083,6 @@ PinBuffer(volatile BufferDesc *buf, BufferAccessStrategy strategy)
 		LockBufHdr(buf);
 		buf->refcount++;
 
-		int aidx, bidx, cidx, didx;
-		aidx = buf->prevbuf;
-		bidx = (int)((buf - BufferDescriptors) / sizeof(BufferDesc));
-		cidx = buf->nextbuf;
-		didx = MRUBuffer;
-		elog(LOG, "Pinning buffer %d", bidx);
-
-		buf->prevbuf = didx;
-		buf->nextbuf = -1;
-		BufferDescriptors[didx].nextbuf = bidx;
-		BufferDescriptors[aidx].nextbuf = cidx;
-		BufferDescriptors[cidx].prevbuf = aidx;
-		MRUBuffer = bidx;
-
 		result = (buf->flags & BM_VALID) != 0;
 		UnlockBufHdr(buf);
 	}
@@ -1139,6 +1125,23 @@ PinBuffer_Locked(volatile BufferDesc *buf)
 								BufferDescriptorGetBuffer(buf));
 }
 
+void printBufList() {
+	bool seen[16];
+	int i;
+	for (i = 0; i < 16; i++) {
+		seen[i] = 0;
+	}
+	int currentBuf;
+	currentBuf = MRUBuffer;
+	elog(LOG, "Printing buffer list:");
+	while (currentBuf != -1) {
+		elog(LOG, "%d, ", currentBuf);
+		Assert(!seen[currentBuf]);
+		seen[currentBuf] = 1;
+		currentBuf = BufferDescriptors[currentBuf].prevbuf;
+	}
+}
+
 /*
  * UnpinBuffer -- make buffer available for replacement.
  *
@@ -1169,6 +1172,25 @@ UnpinBuffer(volatile BufferDesc *buf, bool fixOwner)
 		/* Decrement the shared reference count */
 		Assert(buf->refcount > 0);
 		buf->refcount--;
+
+		/* Adjust pointer values for MRUStack */
+		int aidx, bidx, cidx, didx;
+		aidx = buf->prevbuf;
+		bidx = buf->buf_id;
+		cidx = buf->nextbuf;
+		didx = MRUBuffer;
+		if (bidx != MRUBuffer) {
+			elog(LOG, "Unpinning buffer %d", bidx);
+			buf->prevbuf = didx;
+			buf->nextbuf = -1;
+			BufferDescriptors[didx].nextbuf = bidx;
+			if (aidx >= 0)
+				BufferDescriptors[aidx].nextbuf = cidx;
+			BufferDescriptors[cidx].prevbuf = aidx;
+			MRUBuffer = bidx;
+			printBufList();
+			Assert(BufferDescriptors[MRUBuffer].prevbuf >= 0 && BufferDescriptors[MRUBuffer].prevbuf != MRUBuffer);
+		}
 
 		/* Support LockBufferForCleanup() */
 		if ((buf->flags & BM_PIN_COUNT_WAITER) &&

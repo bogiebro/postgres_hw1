@@ -190,11 +190,12 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 				buf->prevbuf = didx;
 				buf->nextbuf = -1;
 				BufferDescriptors[didx].nextbuf = bidx;
-				BufferDescriptors[aidx].nextbuf = cidx;
+				if (aidx >= 0)
+					BufferDescriptors[aidx].nextbuf = cidx;
 				BufferDescriptors[cidx].prevbuf = aidx;
 				MRUBuffer = bidx;
-
-			} 
+				printBufList();
+			}
 			return buf;
 		}
 		else {
