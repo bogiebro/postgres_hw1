@@ -103,6 +103,7 @@ InitBufferPool(void)
 		{
 			CLEAR_BUFFERTAG(buf->tag);
 			buf->prevbuf = i + 1;
+			buf->nextbuf = i - 1;
 			buf->flags = 0;
 			buf->refcount = 0;
 			buf->wait_backend_pid = 0;
@@ -121,7 +122,9 @@ InitBufferPool(void)
 			buf->content_lock = LWLockAssign();
 		}
 
-		/* Correct last entry of linked list */
+		/* Correct last entry of linked lists */
+		BufferDescriptors[NBuffers - 1].prevbuf = 0;
+		BufferDescriptors[0].nextbuf = NBuffers - 1;
 		BufferDescriptors[NBuffers - 1].freeNext = FREENEXT_END_OF_LIST;
 	}
 
