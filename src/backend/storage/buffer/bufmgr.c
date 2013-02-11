@@ -1088,6 +1088,7 @@ PinBuffer(volatile BufferDesc *buf, BufferAccessStrategy strategy)
 		bidx = (int)((buf - BufferDescriptors) / sizeof(BufferDesc));
 		cidx = buf->nextbuf;
 		didx = MRUBuffer;
+		elog(LOG, "Pinning buffer %d", bidx);
 
 		buf->prevbuf = didx;
 		buf->nextbuf = -1;

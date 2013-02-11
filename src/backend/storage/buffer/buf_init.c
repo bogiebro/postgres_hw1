@@ -123,8 +123,7 @@ InitBufferPool(void)
 		}
 
 		/* Correct last entry of linked lists */
-		BufferDescriptors[NBuffers - 1].prevbuf = 0;
-		BufferDescriptors[0].nextbuf = NBuffers - 1;
+		BufferDescriptors[NBuffers - 1].prevbuf = -1;
 		BufferDescriptors[NBuffers - 1].freeNext = FREENEXT_END_OF_LIST;
 	}
 

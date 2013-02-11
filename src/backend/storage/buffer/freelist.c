@@ -108,7 +108,6 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 {
 	volatile BufferDesc *buf;
 	Latch	   *bgwriterLatch;
-	int			trycounter;
 
 	/* lock the freelist */
 	*lock_held = true;
@@ -165,10 +164,11 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 	}
 
 	/* Nothing on the freelist, so run the "mru" algorithm */
-	trycounter = NBuffers;
 	int currentbuf = MRUBuffer;
+	elog(LOG, "Running MRU");
 	for (;;)
 	{
+		elog(LOG, "Next mru is %d", currentbuf);
 		buf = &BufferDescriptors[currentbuf];
 		/*
 		 * If the buffer is pinned or has a nonzero usage_count, we cannot use
@@ -177,8 +177,10 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 		LockBufHdr(buf);
 		if (buf->refcount == 0)
 		{
+			elog(LOG, "Found a usable buffer %d", currentbuf);
 			/* Found a usable buffer */
 			if (MRUBuffer != currentbuf) {
+
 				int aidx, bidx, cidx, didx;
 				aidx = buf->prevbuf;
 				bidx = currentbuf;
@@ -191,13 +193,13 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 				BufferDescriptors[aidx].nextbuf = cidx;
 				BufferDescriptors[cidx].prevbuf = aidx;
 				MRUBuffer = bidx;
+
 			} 
 			return buf;
 		}
 		else {
 			currentbuf = BufferDescriptors[currentbuf].prevbuf;
-			if (--trycounter == 0)
-			{
+			if (currentbuf == -1) {
 				/*
 				 * We've scanned all the buffers without making any state changes,
 				 * so all the buffers are pinned (or were when we looked at them).
