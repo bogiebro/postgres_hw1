@@ -173,7 +173,7 @@ typedef struct sbufdesc
 
 /* in buf_init.c */
 extern PGDLLIMPORT BufferDesc *BufferDescriptors;
-extern int MRUBuffer;
+extern int *MRUBuffer;
 
 /* in localbuf.c */
 extern BufferDesc *LocalBufferDescriptors;

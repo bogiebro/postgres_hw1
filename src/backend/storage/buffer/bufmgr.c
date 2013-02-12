@@ -1125,8 +1125,8 @@ PinBuffer_Locked(volatile BufferDesc *buf)
 								BufferDescriptorGetBuffer(buf));
 }
 
-void printBufList() {
-	int numbuf = 32;
+void PrintBufList(int starting) {
+	int numbuf = 16;
 	bool seen[numbuf];
 	int contents[numbuf];
 	int i;
@@ -1135,7 +1135,7 @@ void printBufList() {
 		contents[i] = -2;
 	}
 	int currentBuf;
-	currentBuf = MRUBuffer;
+	currentBuf = starting;
 	elog(LOG, "Printing buffer list:");
 	int j;
 	for (j=0; j<numbuf; j++) {
@@ -1154,8 +1154,24 @@ void printBufList() {
 		Assert(contents[i] == currentBuf);
 		currentBuf = BufferDescriptors[currentBuf].nextbuf;
 	}
-	elog(LOG, "MRU Buffer is %d", MRUBuffer);
-	Assert(MRUBuffer == contents[0]);
+	elog(LOG, "MRU Buffer is %d", starting);
+	Assert(starting == contents[0]);
+}
+
+void RearrangePointers(int aidx, int bidx, int cidx, int didx) {
+	if (bidx != *MRUBuffer) {
+		elog(LOG, "Read buffer %d", bidx);
+		elog(LOG, "A,B,C,D: %d, %d, %d, %d", aidx, bidx, cidx, didx);
+		BufferDescriptors[bidx].prevbuf = didx;
+		BufferDescriptors[bidx].nextbuf = -1;
+		BufferDescriptors[didx].nextbuf = bidx;
+		if (aidx >= 0)
+			BufferDescriptors[aidx].nextbuf = cidx;
+		BufferDescriptors[cidx].prevbuf = aidx;
+		*MRUBuffer = bidx;
+		PrintBufList(*MRUBuffer);
+		Assert(BufferDescriptors[*MRUBuffer].prevbuf >= 0 && BufferDescriptors[*MRUBuffer].prevbuf != *MRUBuffer);
+	}
 }
 
 /*
@@ -1189,32 +1205,11 @@ UnpinBuffer(volatile BufferDesc *buf, bool fixOwner)
 		Assert(buf->refcount > 0);
 		buf->refcount--;
 
-		/* Adjust pointer values for MRUStack */
-/*		LockBufHdr(&BufferDescriptors[buf->prevbuf]);
-		LockBufHdr(&BufferDescriptors[buf->nextbuf]);
-		if (MRUBuffer != buf->prevbuf && MRUBuffer != buf->nextbuf && MRUBuffer != buf)
-			LockBufHdr(&BufferDescriptors[MRUBuffer]);*/
-		int aidx, bidx, cidx, didx;
-		aidx = buf->prevbuf;
-		bidx = buf->buf_id;
-		cidx = buf->nextbuf;
-		didx = MRUBuffer;
-		if (bidx != MRUBuffer) {
-			elog(LOG, "Unpinning buffer %d", bidx);
-			elog(LOG, "A,B,C,D: %d, %d, %d, %d", aidx, bidx, cidx, didx);
-			buf->prevbuf = didx;
-			buf->nextbuf = -1;
-			BufferDescriptors[didx].nextbuf = bidx;
-			if (aidx >= 0)
-				BufferDescriptors[aidx].nextbuf = cidx;
-			BufferDescriptors[cidx].prevbuf = aidx;
-			MRUBuffer = bidx;
-			printBufList();
-			Assert(BufferDescriptors[MRUBuffer].prevbuf >= 0 && BufferDescriptors[MRUBuffer].prevbuf != MRUBuffer);
-		}
-/*		UnlockBufHdr(&BufferDescriptors[aidx]);
-		UnlockBufHdr(&BufferDescriptors[cidx]);
-		UnlockBufHdr(&BufferDescriptors[didx]);*/
+		/* Rearrange the pointers */
+		RearrangePointers(buf->prevbuf,
+						  buf->buf_id,
+						  buf->nextbuf,
+						  *MRUBuffer);
 
 		/* Support LockBufferForCleanup() */
 		if ((buf->flags & BM_PIN_COUNT_WAITER) &&

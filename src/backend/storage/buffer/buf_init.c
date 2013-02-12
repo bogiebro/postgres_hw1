@@ -21,7 +21,7 @@
 BufferDesc *BufferDescriptors;
 char	   *BufferBlocks;
 int32	   *PrivateRefCount;
-int MRUBuffer;
+int        *MRUBuffer;
 
 
 /*
@@ -74,9 +74,10 @@ void
 InitBufferPool(void)
 {
 	bool		foundBufs,
-				foundDescs;
-	elog(LOG, "RESETTING MRU BUFFER!");
-	MRUBuffer = 0;
+				foundDescs,
+				foundMRU;
+
+	MRUBuffer = (int *)ShmemInitStruct("MRUBuffer", sizeof(int), &foundMRU);
 	BufferDescriptors = (BufferDesc *)
 		ShmemInitStruct("Buffer Descriptors",
 						NBuffers * sizeof(BufferDesc), &foundDescs);
@@ -85,14 +86,15 @@ InitBufferPool(void)
 		ShmemInitStruct("Buffer Blocks",
 						NBuffers * (Size) BLCKSZ, &foundBufs);
 
-	if (foundDescs || foundBufs)
+	if (foundDescs || foundBufs || foundMRU)
 	{
-		/* both should be present or neither */
+		/* all should be present or none of them */
 		Assert(foundDescs && foundBufs);
 		/* note: this path is only taken in EXEC_BACKEND case */
 	}
 	else
 	{
+		*MRUBuffer = 0;
 		BufferDesc *buf;
 		int			i;
 

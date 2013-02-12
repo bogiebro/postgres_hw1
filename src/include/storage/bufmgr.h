@@ -219,6 +219,9 @@ extern bool BgBufferSync(void);
 
 extern void AtProcExit_LocalBuffers(void);
 
+extern void RearrangePointers(int aidx, int bidx, int cidx, int didx);
+extern void PrintBufList(int starting);
+
 /* in freelist.c */
 extern BufferAccessStrategy GetAccessStrategy(BufferAccessStrategyType btype);
 extern void FreeAccessStrategy(BufferAccessStrategy strategy);
