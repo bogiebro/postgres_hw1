@@ -26,6 +26,7 @@ typedef struct
 {
 	int			firstFreeBuffer;	/* Head of list of unused buffers */
 	int			lastFreeBuffer; /* Tail of list of unused buffers */
+	int         mruBuffer; /* Most recently used buffer */
 
 	/*
 	 * NOTE: lastFreeBuffer is undefined when firstFreeBuffer is -1 (that is,
@@ -85,6 +86,59 @@ typedef struct BufferAccessStrategyData
 static volatile BufferDesc *GetBufferFromRing(BufferAccessStrategy strategy);
 static void AddBufferToRing(BufferAccessStrategy strategy,
 				volatile BufferDesc *buf);
+
+/*void PrintBufList(int starting) {
+	
+	// this will only work for bufsize of 16
+	int numbuf = 16;
+
+	bool seen[numbuf];
+	int contents[numbuf];
+	int i;
+	for (i = 0; i < numbuf; i++) {
+		seen[i] = 0;
+		contents[i] = -2;
+	}
+	int currentBuf;
+	currentBuf = starting;
+	elog(LOG, "Printing buffer list:");
+	int j;
+	for (j=0; j<numbuf; j++) {
+		elog(LOG, "%d, ", currentBuf);
+		Assert(!seen[currentBuf]);
+		contents[j] = currentBuf;
+		if (j < numbuf - 1) currentBuf = BufferDescriptors[currentBuf].prevbuf;
+	}
+	elog(LOG, "Printing cache");
+	for (i=0; i<numbuf; i++) {
+		elog(LOG, "%d", contents[i]);
+	}
+	elog(LOG, "Printing reverse:");
+	for (i=numbuf - 1; i >= 0; i--) {
+		elog(LOG, "%d -> %d", currentBuf, BufferDescriptors[currentBuf].nextbuf);
+		Assert(contents[i] == currentBuf);
+		currentBuf = BufferDescriptors[currentBuf].nextbuf;
+	}
+	elog(LOG, "MRU Buffer is %d", starting);
+	Assert(starting == contents[0]);
+}*/
+
+void RearrangePointers(int aidx, int bidx, int cidx) {
+	int didx = MRUBuffer;
+	if (bidx != MRUBuffer) {
+		elog(LOG, "Read buffer %d", bidx);
+		elog(LOG, "A,B,C,D: %d, %d, %d, %d", aidx, bidx, cidx, didx);
+		BufferDescriptors[bidx].prevbuf = didx;
+		BufferDescriptors[bidx].nextbuf = -1;
+		BufferDescriptors[didx].nextbuf = bidx;
+		if (aidx >= 0)
+			BufferDescriptors[aidx].nextbuf = cidx;
+		BufferDescriptors[cidx].prevbuf = aidx;
+		MRUBuffer = bidx;
+		// PrintBufList(*MRUBuffer);
+		Assert(BufferDescriptors[MRUBuffer].prevbuf >= 0 && BufferDescriptors[MRUBuffer].prevbuf != MRUBuffer);
+	}
+}
 
 /*
  * StrategyGetBuffer
@@ -164,8 +218,8 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 	}
 
 	/* Nothing on the freelist, so run the "mru" algorithm */
-	int currentbuf = *MRUBuffer;
-	elog(LOG, "Running MRU with %d", *MRUBuffer);
+	int currentbuf = MRUBuffer;
+	elog(LOG, "Running MRU with %d", MRUBuffer);
 	for (;;)
 	{
 		elog(LOG, "Next mru is %d", currentbuf);
@@ -181,8 +235,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 			elog(LOG, "Found a usable buffer %d", currentbuf);
 			RearrangePointers(buf->prevbuf,
 							  currentbuf,
-							  buf->nextbuf,
-							  *MRUBuffer);
+							  buf->nextbuf);
 			return buf;
 		}
 		else {
@@ -246,7 +299,7 @@ StrategySyncStart(uint32 *complete_passes, uint32 *num_buf_alloc)
 
 	LWLockAcquire(BufFreelistLock, LW_EXCLUSIVE);
 	
-	result = *MRUBuffer;
+	result = MRUBuffer;
 	if (complete_passes)
 		*complete_passes = StrategyControl->completePasses;
 	if (num_buf_alloc)
@@ -347,6 +400,9 @@ StrategyInitialize(bool init)
 		 */
 		StrategyControl->firstFreeBuffer = 0;
 		StrategyControl->lastFreeBuffer = NBuffers - 1;
+
+		/* Assume the MRU is 0, as set by buf_init.c */
+		StrategyControl->mruBuffer = 0;
 
 		/* Clear statistics */
 		StrategyControl->completePasses = 0;

@@ -21,7 +21,6 @@
 BufferDesc *BufferDescriptors;
 char	   *BufferBlocks;
 int32	   *PrivateRefCount;
-int        *MRUBuffer;
 
 
 /*
@@ -77,7 +76,6 @@ InitBufferPool(void)
 				foundDescs,
 				foundMRU;
 
-	MRUBuffer = (int *)ShmemInitStruct("MRUBuffer", sizeof(int), &foundMRU);
 	BufferDescriptors = (BufferDesc *)
 		ShmemInitStruct("Buffer Descriptors",
 						NBuffers * sizeof(BufferDesc), &foundDescs);
@@ -94,7 +92,6 @@ InitBufferPool(void)
 	}
 	else
 	{
-		*MRUBuffer = 0;
 		BufferDesc *buf;
 		int			i;
 

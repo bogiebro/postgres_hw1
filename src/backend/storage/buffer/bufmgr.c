@@ -1125,58 +1125,6 @@ PinBuffer_Locked(volatile BufferDesc *buf)
 								BufferDescriptorGetBuffer(buf));
 }
 
-void PrintBufList(int starting) {
-	
-	// this will only work for bufsize of 16
-	int numbuf = 16;
-
-	bool seen[numbuf];
-	int contents[numbuf];
-	int i;
-	for (i = 0; i < numbuf; i++) {
-		seen[i] = 0;
-		contents[i] = -2;
-	}
-	int currentBuf;
-	currentBuf = starting;
-	elog(LOG, "Printing buffer list:");
-	int j;
-	for (j=0; j<numbuf; j++) {
-		elog(LOG, "%d, ", currentBuf);
-		Assert(!seen[currentBuf]);
-		contents[j] = currentBuf;
-		if (j < numbuf - 1) currentBuf = BufferDescriptors[currentBuf].prevbuf;
-	}
-	elog(LOG, "Printing cache");
-	for (i=0; i<numbuf; i++) {
-		elog(LOG, "%d", contents[i]);
-	}
-	elog(LOG, "Printing reverse:");
-	for (i=numbuf - 1; i >= 0; i--) {
-		elog(LOG, "%d -> %d", currentBuf, BufferDescriptors[currentBuf].nextbuf);
-		Assert(contents[i] == currentBuf);
-		currentBuf = BufferDescriptors[currentBuf].nextbuf;
-	}
-	elog(LOG, "MRU Buffer is %d", starting);
-	Assert(starting == contents[0]);
-}
-
-void RearrangePointers(int aidx, int bidx, int cidx, int didx) {
-	if (bidx != *MRUBuffer) {
-		elog(LOG, "Read buffer %d", bidx);
-		elog(LOG, "A,B,C,D: %d, %d, %d, %d", aidx, bidx, cidx, didx);
-		BufferDescriptors[bidx].prevbuf = didx;
-		BufferDescriptors[bidx].nextbuf = -1;
-		BufferDescriptors[didx].nextbuf = bidx;
-		if (aidx >= 0)
-			BufferDescriptors[aidx].nextbuf = cidx;
-		BufferDescriptors[cidx].prevbuf = aidx;
-		*MRUBuffer = bidx;
-		// PrintBufList(*MRUBuffer);
-		Assert(BufferDescriptors[*MRUBuffer].prevbuf >= 0 && BufferDescriptors[*MRUBuffer].prevbuf != *MRUBuffer);
-	}
-}
-
 /*
  * UnpinBuffer -- make buffer available for replacement.
  *
@@ -1211,8 +1159,7 @@ UnpinBuffer(volatile BufferDesc *buf, bool fixOwner)
 		/* Rearrange the pointers */
 		RearrangePointers(buf->prevbuf,
 						  buf->buf_id,
-						  buf->nextbuf,
-						  *MRUBuffer);
+						  buf->nextbuf);
 
 		/* Support LockBufferForCleanup() */
 		if ((buf->flags & BM_PIN_COUNT_WAITER) &&
