@@ -187,6 +187,7 @@ extern volatile BufferDesc *StrategyGetBuffer(BufferAccessStrategy strategy,
 				  bool *lock_held);
 extern void RearrangePointers(int aidx, int bidx, int cidx);
 #define MRUBuffer StrategyControl->mruBuffer
+#define LRUBuffer StrategyControl->lruBuffer
 extern void StrategyFreeBuffer(volatile BufferDesc *buf);
 extern bool StrategyRejectBuffer(BufferAccessStrategy strategy,
 					 volatile BufferDesc *buf);

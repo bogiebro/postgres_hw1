@@ -7,3 +7,5 @@ Local Buffer Stuff
 SpinLocks / LockBufHdr
 	- when do we need to use them, if ever?
 	- how do we use them without deadlocking?
+
+Remove print statements, debugging

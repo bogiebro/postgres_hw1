@@ -27,6 +27,7 @@ typedef struct
 	int			firstFreeBuffer;	/* Head of list of unused buffers */
 	int			lastFreeBuffer; /* Tail of list of unused buffers */
 	int         mruBuffer; /* Most recently used buffer */
+	int         lruBuffer; /* Least recently used buffer */
 
 	/*
 	 * NOTE: lastFreeBuffer is undefined when firstFreeBuffer is -1 (that is,
@@ -135,6 +136,8 @@ void RearrangePointers(int aidx, int bidx, int cidx) {
 			BufferDescriptors[aidx].nextbuf = cidx;
 		BufferDescriptors[cidx].prevbuf = aidx;
 		MRUBuffer = bidx;
+		if (bidx == LRUBuffer)
+			LRUBuffer = cidx;
 		// PrintBufList(*MRUBuffer);
 		Assert(BufferDescriptors[MRUBuffer].prevbuf >= 0 && BufferDescriptors[MRUBuffer].prevbuf != MRUBuffer);
 	}
@@ -218,11 +221,11 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 	}
 
 	/* Nothing on the freelist, so run the "mru" algorithm */
-	int currentbuf = MRUBuffer;
-	elog(LOG, "Running MRU with %d", MRUBuffer);
+	int currentbuf = LRUBuffer;
+	elog(LOG, "Running LRU with %d", MRUBuffer);
 	for (;;)
 	{
-		elog(LOG, "Next mru is %d", currentbuf);
+		elog(LOG, "Next lru is %d", currentbuf);
 		buf = &BufferDescriptors[currentbuf];
 		/*
 		 * If the buffer is pinned or has a nonzero usage_count, we cannot use
@@ -239,7 +242,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 			return buf;
 		}
 		else {
-			currentbuf = BufferDescriptors[currentbuf].prevbuf;
+			currentbuf = BufferDescriptors[currentbuf].nextbuf;
 			if (currentbuf == -1) {
 				/*
 				 * We've scanned all the buffers without making any state changes,
@@ -401,8 +404,9 @@ StrategyInitialize(bool init)
 		StrategyControl->firstFreeBuffer = 0;
 		StrategyControl->lastFreeBuffer = NBuffers - 1;
 
-		/* Assume the MRU is 0, as set by buf_init.c */
+		/* Set the lru and mru buffer pointers */
 		StrategyControl->mruBuffer = 0;
+		StrategyControl->lruBuffer = NBuffers - 1;
 
 		/* Clear statistics */
 		StrategyControl->completePasses = 0;
