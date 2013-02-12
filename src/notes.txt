@@ -1,19 +1,9 @@
-"clock sweep" algorithm:
-	&BufferDescriptors[StrategyControl->nextVictimBuffer]
+Local Buffer Stuff
+	- why can we compile without changing it?
+	LocalBufferAlloc
+	LocalBufferDescriptors
+	nextFreeLocalBuf
 
-when the next victim buffer is over the limit, just return the last one
-no need for a usage count- we don't care
-
-
-we need to set the nextVictum on reads (so what know what was most recently used)
-make a stack, with pointers eventually leading up to the first (least recent) element, rather than the first element. When something is pinned, travel the pointer one up, redirect it to the one before, and make the old one point where it was going
-
-BufferDescripters
-
-PinBuffer
-
-LocalBufferAlloc
-
-LocalBufferDescriptors
-
-nextFreeLocalBuf
+SpinLocks / LockBufHdr
+	- when do we need to use them, if ever?
+	- how do we use them without deadlocking?
