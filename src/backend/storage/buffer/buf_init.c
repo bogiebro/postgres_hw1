@@ -21,6 +21,7 @@
 BufferDesc *BufferDescriptors;
 char	   *BufferBlocks;
 int32	   *PrivateRefCount;
+int MRUBuffer;
 
 
 /*
@@ -74,6 +75,7 @@ InitBufferPool(void)
 {
 	bool		foundBufs,
 				foundDescs;
+	elog(LOG, "RESETTING MRU BUFFER!");
 	MRUBuffer = 0;
 	BufferDescriptors = (BufferDesc *)
 		ShmemInitStruct("Buffer Descriptors",

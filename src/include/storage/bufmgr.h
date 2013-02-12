@@ -222,6 +222,5 @@ extern void AtProcExit_LocalBuffers(void);
 /* in freelist.c */
 extern BufferAccessStrategy GetAccessStrategy(BufferAccessStrategyType btype);
 extern void FreeAccessStrategy(BufferAccessStrategy strategy);
-int MRUBuffer;
 
 #endif

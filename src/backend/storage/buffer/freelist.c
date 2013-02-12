@@ -165,7 +165,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 
 	/* Nothing on the freelist, so run the "mru" algorithm */
 	int currentbuf = MRUBuffer;
-	elog(LOG, "Running MRU");
+	elog(LOG, "Running MRU with %d", MRUBuffer);
 	for (;;)
 	{
 		elog(LOG, "Next mru is %d", currentbuf);
@@ -180,6 +180,10 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 			elog(LOG, "Found a usable buffer %d", currentbuf);
 			/* Found a usable buffer */
 			if (MRUBuffer != currentbuf) {
+/*				LockBufHdr(&BufferDescriptors[buf->prevbuf]);
+				LockBufHdr(&BufferDescriptors[buf->nextbuf]);
+				if (MRUBuffer != buf->prevbuf && MRUBuffer != buf->nextbuf && MRUBuffer != buf)
+					LockBufHdr(&BufferDescriptors[MRUBuffer]);*/
 
 				int aidx, bidx, cidx, didx;
 				aidx = buf->prevbuf;
@@ -195,6 +199,9 @@ StrategyGetBuffer(BufferAccessStrategy strategy, bool *lock_held)
 				BufferDescriptors[cidx].prevbuf = aidx;
 				MRUBuffer = bidx;
 				printBufList();
+/*				UnlockBufHdr(&BufferDescriptors[aidx]);
+				UnlockBufHdr(&BufferDescriptors[cidx]);
+				UnlockBufHdr(&BufferDescriptors[didx]);*/
 			}
 			return buf;
 		}
