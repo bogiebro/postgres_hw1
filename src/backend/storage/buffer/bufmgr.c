@@ -1126,7 +1126,10 @@ PinBuffer_Locked(volatile BufferDesc *buf)
 }
 
 void PrintBufList(int starting) {
+	
+	// this will only work for bufsize of 16
 	int numbuf = 16;
+
 	bool seen[numbuf];
 	int contents[numbuf];
 	int i;
@@ -1169,7 +1172,7 @@ void RearrangePointers(int aidx, int bidx, int cidx, int didx) {
 			BufferDescriptors[aidx].nextbuf = cidx;
 		BufferDescriptors[cidx].prevbuf = aidx;
 		*MRUBuffer = bidx;
-		PrintBufList(*MRUBuffer);
+		// PrintBufList(*MRUBuffer);
 		Assert(BufferDescriptors[*MRUBuffer].prevbuf >= 0 && BufferDescriptors[*MRUBuffer].prevbuf != *MRUBuffer);
 	}
 }
@@ -1439,6 +1442,10 @@ BgBufferSync(void)
 		saved_info_valid = false;
 		return true;
 	}
+
+	/* Turn off this part because I don't understand it */
+	saved_info_valid = false;
+	return true;
 
 	/*
 	 * Compute strategy_delta = how many buffers have been scanned by the
